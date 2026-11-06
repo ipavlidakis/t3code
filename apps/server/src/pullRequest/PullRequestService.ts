@@ -1,4 +1,5 @@
 import { isSshRemoteUrl } from "@t3tools/shared/sourceControl";
+import type { GitHubIssueListInput, GitHubIssueListResult } from "@t3tools/contracts";
 import { parseDiffFilePaths } from "@t3tools/source-control-core/server/diffFileRevisions";
 import * as Cache from "effect/Cache";
 import * as Cause from "effect/Cause";
@@ -177,6 +178,9 @@ type CredentialRef = PullRequestRef & { readonly [credentialNamespace]?: string 
 export class PullRequestService extends Context.Service<
   PullRequestService,
   {
+    readonly listIssues: (
+      input: GitHubIssueListInput,
+    ) => Effect.Effect<GitHubIssueListResult, PullRequestError>;
     readonly list: (
       input: PullRequestListInput,
     ) => Effect.Effect<PullRequestListResult, PullRequestError>;
@@ -512,6 +516,7 @@ function withRateLimitBackoff(
   ) => wrap(operation, call, true);
 
   const wrapped = {
+    ...(api.listIssues === undefined ? {} : { listIssues: api.listIssues }),
     kind: api.kind,
     capabilities: api.capabilities,
     ...(api.mergeMessageRewrite === undefined
@@ -3783,6 +3788,59 @@ export const make = Effect.gen(function* () {
     );
 
   return PullRequestService.of({
+    listIssues: Effect.fn("PullRequestService.listIssues")(function* (input) {
+      const { supported } = yield* listWorkspaceProjects(input);
+      const repositories = supported.filter(
+        ({ api }) => api.kind === "github" && api.listIssues !== undefined,
+      );
+      const selected = repositories.filter(
+        ({ cursorKey }) => input.pages === undefined || input.pages[cursorKey] !== undefined,
+      );
+      const results = yield* Effect.forEach(
+        selected,
+        (repository) =>
+          repository.api.listIssues!({
+            cwd: repository.project.workspaceRoot,
+            host: repository.host,
+            repository: repository.repository,
+            state: input.state,
+            ...(input.query === undefined ? {} : { query: input.query }),
+            page: input.pages?.[repository.cursorKey] ?? 1,
+          }).pipe(
+            Effect.result,
+            Effect.map((result) => ({ repository, result })),
+          ),
+        { concurrency: REPOSITORY_CONCURRENCY },
+      );
+      const entries: Array<GitHubIssueListResult["entries"][number]> = [];
+      const errors: Array<GitHubIssueListResult["errors"][number]> = [];
+      const nextPages: Record<string, number> = {};
+      let truncated = false;
+      for (const { repository, result } of results) {
+        if (result._tag === "Failure") {
+          errors.push({
+            projectId: repository.project.id,
+            projectTitle: repository.project.title,
+            message: providerDetail(requirementOf, result.failure),
+          });
+          continue;
+        }
+        entries.push(
+          ...result.success.items.map((issue) => ({
+            ...issue,
+            projectId: repository.project.id,
+            projectTitle: repository.project.title,
+            host: repository.host,
+            repository: repository.repository,
+          })),
+        );
+        if (result.success.nextPage !== null)
+          nextPages[repository.cursorKey] = result.success.nextPage;
+        truncated ||= result.success.truncated;
+      }
+      entries.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+      return { entries, errors, repositoryCount: repositories.length, nextPages, truncated };
+    }),
     withSharedProjectReads,
     routing,
     routingIdentity,

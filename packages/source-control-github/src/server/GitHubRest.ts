@@ -120,6 +120,7 @@ export const make = Effect.gen(function* () {
     readonly host: string;
     readonly operation: string;
     readonly request: HttpClientRequest.HttpClientRequest;
+    readonly resource: string;
     readonly maxResponseBytes: number;
     readonly timeout?: Duration.Input | undefined;
     readonly allowReserve: boolean;
@@ -136,8 +137,7 @@ export const make = Effect.gen(function* () {
       {
         host,
         operation: input.operation,
-        // All current paths spend `core`; search would need a different resource.
-        resource: "core",
+        resource: input.resource,
         allowReserve: input.allowReserve,
         timeout: input.timeout,
       },
@@ -199,6 +199,7 @@ export const make = Effect.gen(function* () {
           host: input.host,
           operation: input.operation,
           request,
+          resource: input.path.replace(/^\/+/, "").startsWith("search/") ? "search" : "core",
           maxResponseBytes: input.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES,
           timeout: input.timeout,
           allowReserve: input.allowReserve ?? interactive,

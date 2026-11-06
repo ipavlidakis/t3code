@@ -34,6 +34,7 @@ import {
   ChatGptHandoffState,
 } from "./providerSetup.ts";
 import * as Schema from "effect/Schema";
+import { GitHubIssueListInput, GitHubIssueListResult } from "./gitHubIssue.ts";
 import * as Rpc from "effect/rpc/Rpc";
 import * as RpcGroup from "effect/rpc/RpcGroup";
 import * as RpcMiddleware from "effect/rpc/RpcMiddleware";
@@ -554,6 +555,7 @@ export const WS_METHODS = {
   cloudInstallRelayClient: "cloud.installRelayClient",
 
   pullRequestsList: "pullRequests.list",
+  gitHubIssuesList: "githubIssues.list",
   pullRequestsListStats: "pullRequests.listStats",
   pullRequestsFilterOptions: "pullRequests.filterOptions",
   pullRequestsSummary: "pullRequests.summary",
@@ -1006,6 +1008,12 @@ const PullRequestRpcError = Schema.Union([
 const WsPullRequestsListRpc = Rpc.make(WS_METHODS.pullRequestsList, {
   payload: PullRequestListInput,
   success: PullRequestListResult,
+  error: PullRequestRpcError,
+});
+
+const WsGitHubIssuesListRpc = Rpc.make(WS_METHODS.gitHubIssuesList, {
+  payload: GitHubIssueListInput,
+  success: GitHubIssueListResult,
   error: PullRequestRpcError,
 });
 
@@ -2069,6 +2077,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsCloudGetRelayClientStatusRpc,
   WsCloudInstallRelayClientRpc,
   WsPullRequestsListRpc,
+  WsGitHubIssuesListRpc,
   WsPullRequestsListStatsRpc,
   WsPullRequestsFilterOptionsRpc,
   WsPullRequestsSummaryRpc,

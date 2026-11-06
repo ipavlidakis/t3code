@@ -2754,6 +2754,7 @@ export const layerWsRpc = (
               ),
           ),
         [WS_METHODS.pullRequestsList]: (input) => pullRequests.list(input),
+        [WS_METHODS.gitHubIssuesList]: (input) => pullRequests.listIssues(input),
         [WS_METHODS.pullRequestsListStats]: (input) => pullRequests.listStats(input),
         [WS_METHODS.pullRequestsFilterOptions]: (input) => pullRequests.filterOptions(input),
         [WS_METHODS.pullRequestsRoutingIdentity]: (input) => pullRequests.routingIdentity(input),

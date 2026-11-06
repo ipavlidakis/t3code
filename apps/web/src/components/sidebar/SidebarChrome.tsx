@@ -1,4 +1,10 @@
-import { ArrowLeftIcon, ArrowRightIcon, ChartNoAxesColumnIcon, SettingsIcon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  ChartNoAxesColumnIcon,
+  CircleDotIcon,
+  SettingsIcon,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import { memo } from "react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
@@ -276,6 +282,16 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
               icon={<PullRequestGlyph.pullRequest />}
               label="Pull requests"
               onClick={handlePullRequestsClick}
+            />
+          ) : null}
+          {pullRequestsSupported ? (
+            <SidebarUtilityItem
+              icon={<CircleDotIcon />}
+              label="GitHub issues"
+              onClick={() => {
+                closeMobileSidebar();
+                void navigate({ to: "/issues" });
+              }}
             />
           ) : null}
           <SidebarUtilityItem

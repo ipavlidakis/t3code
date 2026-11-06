@@ -102,6 +102,7 @@ const RPC_AGGREGATES = {
   [WS_METHODS.cloudGetRelayClientStatus]: "cloud",
   [WS_METHODS.cloudInstallRelayClient]: "cloud",
   [WS_METHODS.pullRequestsList]: "pull-requests",
+  [WS_METHODS.gitHubIssuesList]: "github-issues",
   [WS_METHODS.pullRequestsListStats]: "pull-requests",
   [WS_METHODS.pullRequestsFilterOptions]: "pull-requests",
   [WS_METHODS.pullRequestsSummary]: "pull-requests",

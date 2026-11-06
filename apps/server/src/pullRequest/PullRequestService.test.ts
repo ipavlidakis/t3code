@@ -285,6 +285,103 @@ const requestFailed = new PullRequestProviderError({
   detail: "HTTP 404",
 });
 
+it.effect(
+  "aggregates GitHub issues once per repository with partial failures and scoped pages",
+  () =>
+    Effect.gen(function* () {
+      const requested: Array<string> = [];
+      const service = yield* makeService({
+        projects: [
+          project({ id: "a", title: "App", workspaceRoot: "/a", repository: "team/app" }),
+          project({
+            id: "duplicate",
+            title: "Worktree",
+            workspaceRoot: "/duplicate",
+            repository: "team/app",
+          }),
+          project({ id: "b", title: "Private", workspaceRoot: "/b", repository: "team/private" }),
+          project({
+            id: "c",
+            title: "Other",
+            workspaceRoot: "/c",
+            repository: "team/other",
+            provider: "gitlab",
+          }),
+        ],
+        providers: [
+          fakePullRequestProvider(SourceControlProviderKind.make("github"), {
+            listIssues: ({ repository, page }) => {
+              requested.push(`${repository}:${page}`);
+              return repository === "team/private"
+                ? Effect.fail(requestFailed)
+                : Effect.succeed({
+                    items: [
+                      {
+                        number: page,
+                        title: "Bug",
+                        url: `https://github.com/team/app/issues/${page}`,
+                        state: "open" as const,
+                        author: null,
+                        labels: [],
+                        updatedAt: "2026-11-06T10:00:00Z",
+                      },
+                    ],
+                    nextPage: page === 1 ? 2 : null,
+                    truncated: false,
+                  });
+            },
+          }),
+          fakePullRequestProvider(SourceControlProviderKind.make("gitlab")),
+        ],
+      });
+      const first = yield* service.listIssues({ state: "open" });
+      expect(requested.toSorted()).toEqual(["team/app:1", "team/private:1"]);
+      expect(first.repositoryCount).toBe(2);
+      expect(first.entries.map(({ projectId, number }) => [projectId, number])).toEqual([["a", 1]]);
+      expect(first.errors.map(({ projectId }) => projectId)).toEqual(["b"]);
+      expect(Object.values(first.nextPages)).toEqual([2]);
+      requested.length = 0;
+      const second = yield* service.listIssues({ state: "open", pages: first.nextPages });
+      expect(requested).toEqual(["team/app:2"]);
+      expect(second.entries[0]?.number).toBe(2);
+      expect(second.nextPages).toEqual({});
+      requested.length = 0;
+      yield* service.listIssues({ state: "closed", projectId: "b" as ProjectId });
+      expect(requested).toEqual(["team/private:1"]);
+    }),
+);
+
+it.effect("keeps core issue and pull request reads available after search quota is exhausted", () =>
+  Effect.gen(function* () {
+    const service = yield* makeService({
+      projects: [
+        project({ id: "app", title: "App", workspaceRoot: "/app", repository: "team/app" }),
+      ],
+      providers: [
+        fakePullRequestProvider(SourceControlProviderKind.make("github"), {
+          listIssues: ({ query }) =>
+            query
+              ? Effect.fail(
+                  new PullRequestProviderError({
+                    provider: SourceControlProviderKind.make("github"),
+                    operation: "listIssues",
+                    reason: "rate-limited",
+                    detail: "Search quota exhausted",
+                  }),
+                )
+              : Effect.succeed({ items: [], nextPage: null, truncated: false }),
+        }),
+      ],
+    });
+    const search = yield* service.listIssues({ state: "open", query: "bug" });
+    expect(search.errors).toHaveLength(1);
+    const issues = yield* service.listIssues({ state: "open" });
+    expect(issues.errors).toEqual([]);
+    const requests = yield* service.list({ state: "open", involvement: "all" });
+    expect(requests.errors).toEqual([]);
+  }),
+);
+
 const FULL_REVIEW: PullRequestReviewCapabilities = {
   inlineComment: true,
   reply: true,

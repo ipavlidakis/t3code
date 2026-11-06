@@ -1,4 +1,7 @@
 import { isCommitSha, normalizeHost } from "@t3tools/source-control-core/server/pullRequestUtils";
+import { decodeIssuePage, decodeIssueSearch, toGitHubIssues } from "./gitHubIssues.ts";
+import type { PullRequestProviderApi } from "@t3tools/source-control-core/server/PullRequestProvider";
+import type { GitHubIssue } from "@t3tools/contracts";
 import { removeAgentCredits } from "@t3tools/source-control-core/server/mergeMessage";
 import { KnownWorkflowRuns, makeChecksRevalidator } from "./gitHubConditionalChecks.ts";
 import { runGitHubStackAction, type GitHubStackActionError } from "./githubStackActions.ts";
@@ -445,6 +448,17 @@ export class GitHubPullRequestApi extends Context.Service<
       readonly cursor?: ProviderListCursor | undefined;
       readonly filters?: PullRequestListFilters | undefined;
     }) => Effect.Effect<GitHubPullRequestListBatch, GitHubPullRequestApiError>;
+
+    readonly listIssues: (
+      input: Parameters<NonNullable<PullRequestProviderApi["listIssues"]>>[0],
+    ) => Effect.Effect<
+      {
+        readonly items: ReadonlyArray<GitHubIssue>;
+        readonly nextPage: number | null;
+        readonly truncated: boolean;
+      },
+      GitHubPullRequestApiError
+    >;
 
     readonly searchPullRequests: (input: {
       readonly cwd: string;
@@ -1766,6 +1780,68 @@ export const make = Effect.gen(function* () {
   }).pipe(RequestResolver.batchN(FILES_VIEWED_PER_REQUEST));
 
   return GitHubPullRequestApi.of({
+    listIssues: Effect.fn("GitHubPullRequestApi.listIssues")(function* (input) {
+      const segments = input.repository.split("/");
+      if (
+        segments.length !== 2 ||
+        segments.some((segment) => !segment || segment === "." || segment === "..")
+      ) {
+        return yield* new GitHubRepositorySelectorError({
+          cwd: input.cwd,
+          operation: "listIssues",
+        });
+      }
+      const query = input.query?.trim();
+      const params = new URLSearchParams({
+        per_page: "50",
+        page: String(input.page),
+        sort: "updated",
+        direction: "desc",
+      });
+      if (query) {
+        params.set(
+          "q",
+          [
+            `repo:${input.repository}`,
+            "is:issue",
+            ...(input.state === "all" ? [] : [`is:${input.state}`]),
+            "in:title",
+            searchPhrase(query),
+          ].join(" "),
+        );
+        params.set("order", "desc");
+      } else {
+        params.set("state", input.state);
+      }
+      const response = yield* api.rest({
+        host: input.host,
+        operation: "listIssues",
+        path: query
+          ? `search/issues?${params}`
+          : `repos/${segments.map(encodeURIComponent).join("/")}/issues?${params}`,
+      });
+      if (response.truncated)
+        return yield* readError(input.cwd, "listIssues", "Response exceeded the size limit");
+      if (query) {
+        const result = yield* decodeIssueSearch(response.body).pipe(
+          Effect.mapError((cause) => readError(input.cwd, "listIssues", cause)),
+        );
+        return {
+          items: toGitHubIssues(result.items),
+          nextPage: input.page * 50 < Math.min(result.total_count, 1000) ? input.page + 1 : null,
+          truncated: result.incomplete_results || result.total_count > 1000,
+        };
+      }
+      const rows = yield* decodeIssuePage(response.body).pipe(
+        Effect.mapError((cause) => readError(input.cwd, "listIssues", cause)),
+      );
+      const hasNext = response.headers.link?.includes('rel="next"') ?? false;
+      return {
+        items: toGitHubIssues(rows),
+        nextPage: hasNext && input.page < 10000 ? input.page + 1 : null,
+        truncated: hasNext && input.page === 10000,
+      };
+    }),
     withVerifiedCredential,
     revalidateChecks,
     getRoutingIdentity,

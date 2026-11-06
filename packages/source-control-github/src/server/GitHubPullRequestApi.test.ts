@@ -732,6 +732,102 @@ it.effect(
 );
 
 layer("GitHubPullRequestApi.layer", (it) => {
+  it.effect("lists issues without PRs and preserves pagination across PR-only pages", () =>
+    Effect.gen(function* () {
+      const issue = {
+        number: 1,
+        title: "Bug",
+        html_url: "https://github.com/acme/web/issues/1",
+        state: "open",
+        user: null,
+        labels: [{ name: "bug", color: "ff0000" }],
+        updated_at: "2026-11-06T10:00:00Z",
+      };
+      mockedExecute.mockImplementation((call) => {
+        assert.ok(call.kind === "rest");
+        const url = new URL(call.path, "https://api.github.com/");
+        assert.strictEqual(url.pathname, "/repos/acme/web/issues");
+        assert.strictEqual(url.searchParams.get("state"), "open");
+        return Effect.succeed(
+          output(
+            encodeJson(
+              url.searchParams.get("page") === "1" ? [{ ...issue, pull_request: {} }] : [issue],
+            ),
+            false,
+            false,
+            url.searchParams.get("page") === "1"
+              ? { link: '<https://api.github.com/repos/acme/web/issues?page=2>; rel="next"' }
+              : {},
+          ),
+        );
+      });
+      const api = yield* GitHubPullRequestApi.GitHubPullRequestApi;
+      const input = {
+        cwd: "/repo",
+        host: "github.com",
+        repository: "acme/web",
+        state: "open" as const,
+      };
+      expect(yield* api.listIssues({ ...input, page: 1 })).toEqual({
+        items: [],
+        nextPage: 2,
+        truncated: false,
+      });
+      const result = yield* api.listIssues({ ...input, page: 2 });
+      expect(result.nextPage).toBeNull();
+      expect(result.items).toEqual([
+        {
+          number: 1,
+          title: "Bug",
+          url: issue.html_url,
+          state: "open",
+          author: null,
+          labels: issue.labels,
+          updatedAt: issue.updated_at,
+        },
+      ]);
+    }),
+  );
+
+  it.effect("bounds issue search pagination and reports incomplete results", () =>
+    Effect.gen(function* () {
+      mockedExecute.mockImplementation((call) => {
+        assert.ok(call.kind === "rest");
+        const url = new URL(call.path, "https://api.github.com/");
+        expect(url.pathname).toBe("/search/issues");
+        expect(url.searchParams.get("q")).toBe(
+          'repo:acme/web is:issue is:closed in:title "connection lost"',
+        );
+        return Effect.succeed(
+          output(encodeJson({ items: [], total_count: 1001, incomplete_results: true })),
+        );
+      });
+      const api = yield* GitHubPullRequestApi.GitHubPullRequestApi;
+      expect(
+        yield* api.listIssues({
+          cwd: "/repo",
+          host: "github.com",
+          repository: "acme/web",
+          state: "closed",
+          query: "connection lost",
+          page: 20,
+        }),
+      ).toEqual({ items: [], nextPage: null, truncated: true });
+      mockedExecute.mockReturnValue(Effect.succeed(output("{}")));
+      expect(
+        (yield* api
+          .listIssues({
+            cwd: "/repo",
+            host: "github.com",
+            repository: "acme/web",
+            state: "all",
+            page: 1,
+          })
+          .pipe(Effect.result))._tag,
+      ).toBe("Failure");
+    }),
+  );
+
   it.effect("keeps recent references when the typed number does not exist", () =>
     Effect.gen(function* () {
       const search = {

@@ -1,6 +1,8 @@
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import type {
+  GitHubIssue,
+  GitHubIssueListInput,
   PullRequestStackMembership,
   PullRequestAction,
   PullRequestStackHead,
@@ -339,6 +341,18 @@ export interface PullRequestProviderApi {
       readonly filters?: PullRequestListFilters | undefined;
     },
   ) => Effect.Effect<ProviderChangeRequestPage, PullRequestProviderError>;
+
+  readonly listIssues?: (
+    input: ProviderRepositoryRef &
+      Pick<GitHubIssueListInput, "state" | "query"> & { readonly page: number },
+  ) => Effect.Effect<
+    {
+      readonly items: ReadonlyArray<GitHubIssue>;
+      readonly nextPage: number | null;
+      readonly truncated: boolean;
+    },
+    PullRequestProviderError
+  >;
 
   /** Newest `limit` rows total across repositories, under one cursor boundary. */
   readonly listChangeRequestsAcross?: (input: {

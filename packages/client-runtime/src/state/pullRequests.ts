@@ -720,6 +720,11 @@ export function createPullRequestEnvironmentAtoms<R, E>(
       staleTimeMs: 0,
       idleTtlMs: 0,
     }),
+    issues: createEnvironmentRpcQueryAtomFamily(runtime, {
+      label: "environment-data:github-issues:list",
+      tag: WS_METHODS.gitHubIssuesList,
+      staleTimeMs: 30_000,
+    }),
     list: actionPatchedQuery(
       createEnvironmentRpcQueryAtomFamily(runtime, {
         label: listLabel,

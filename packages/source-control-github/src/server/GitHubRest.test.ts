@@ -98,6 +98,37 @@ describe("environmentToken", () => {
 });
 
 describe("GitHubRest", () => {
+  it.effect("honors the search quota without blocking core repository reads", () => {
+    const { layer, requests } = harness(() =>
+      json(
+        {},
+        {
+          headers: {
+            "x-ratelimit-resource": "search",
+            "x-ratelimit-limit": "30",
+            "x-ratelimit-remaining": "0",
+            "x-ratelimit-reset": String(Math.floor(NOW / 1000) + 600),
+          },
+        },
+      ),
+    );
+    return Effect.gen(function* () {
+      yield* TestClock.setTime(NOW);
+      const api = yield* GitHubRest.GitHubRest;
+      const search = {
+        host: "github.com",
+        operation: "listIssues",
+        path: "search/issues?q=repo:acme/web",
+      };
+      yield* api.rest(search);
+      const paused = yield* api.rest(search).pipe(Effect.flip);
+      expect(paused._tag).toBe("SourceControlRateLimitPausedError");
+      expect(requests).toHaveLength(1);
+      yield* api.rest({ ...search, path: "repos/acme/web/issues" });
+      expect(requests).toHaveLength(2);
+    }).pipe(Effect.provide(layer));
+  });
+
   it.effect("traces the operation, path and quota, never the query string or the token", () => {
     const spans: Array<Tracer.NativeSpan> = [];
     const tracer = Tracer.make({

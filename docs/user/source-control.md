@@ -170,6 +170,21 @@ the intended remote with `git branch --set-upstream-to=<remote>/<branch>`.
 Choose the writing style and model in **Settings → Source control**. **Repository conventions**
 uses the project's instructions and recent commit subjects.
 
+## Browse GitHub issues
+
+Choose **Start task** on an issue to launch a thread in Build mode. Use **Run on** to select a
+local or remote environment with a project for that repository. Connect the remote environment
+and add the repository there first if it is not listed.
+Select the agent and model, edit the instructions, and choose a new worktree or the project
+checkout. For a new worktree, set its branch name and base branch; the project's setup scripts
+run automatically. The issue URL is included even if you replace the suggested prompt.
+
+On web and desktop, open **GitHub issues** next to **Pull requests** in the sidebar to browse
+issues from your projects' GitHub repositories across connected environments. Filter by repository
+or state, search issue titles, and select an issue to open it on GitHub. **Load more issues** reads
+the next page; **Refresh** retries repositories that could not be reached. The list uses the same
+GitHub sign-in as pull requests, including access to private repositories.
+
 ## Review and merge
 
 Open **Pull requests** to review changes and comments, request reviewers, check out a branch,

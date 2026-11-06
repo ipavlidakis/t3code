@@ -577,6 +577,11 @@ const usePullRequestListsQuery = createMergedEnvironmentQuery(
   pullRequestEnvironment.list,
 );
 
+export const useGitHubIssueLists = createMergedEnvironmentQuery(
+  "web-github-issues:list",
+  pullRequestEnvironment.issues,
+);
+
 const usePullRequestStatsQuery = createMergedEnvironmentQuery(
   "web-pull-requests:list-stats",
   pullRequestEnvironment.listStats,
