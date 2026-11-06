@@ -497,7 +497,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     }),
   );
 
-  it.effect("omits update feeds for pull request preview builds", () =>
+  it.effect("isolates personal macOS builds from official updates and protocol handlers", () =>
     Effect.gen(function* () {
       const preview = yield* createBuildConfig(
         "mac",
@@ -530,13 +530,11 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
 
       assert.isNull(preview.publish);
       assert.isNull(previewChannel.publish);
-      assert.deepStrictEqual(release.publish, [
-        {
-          provider: "github",
-          owner: "pingdotgg",
-          repo: "t3code",
-          releaseType: "release",
-        },
+      assert.isNull(release.publish);
+      assert.equal(release.appId, "com.ipavlidakis.t3code.personal");
+      assert.equal(release.productName, "T3 Code Personal");
+      assert.deepStrictEqual((release.mac as { protocols: unknown }).protocols, [
+        { name: "Web site URL", schemes: ["http", "https"], role: "Viewer" },
       ]);
     }).pipe(
       Effect.provide(
@@ -1418,7 +1416,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     });
 
     assert.deepStrictEqual(configuration, {
-      appId: "com.t3tools.t3code",
+      appId: "com.ipavlidakis.t3code.personal",
       teamId: "ABC1234567",
       rpDomains: ["example.clerk.accounts.dev"],
       provisioningProfilePath: "/tmp/t3code.provisionprofile",
@@ -1441,7 +1439,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
       "clerk.example.com",
       "example.clerk.accounts.dev",
     ]);
-    assert.include(entitlements, "<string>ABC1234567.com.t3tools.t3code</string>");
+    assert.include(entitlements, "<string>ABC1234567.com.ipavlidakis.t3code.personal</string>");
     assert.include(entitlements, "<string>webcredentials:clerk.example.com</string>");
     assert.include(entitlements, "<string>webcredentials:example.clerk.accounts.dev</string>");
     assert.include(entitlements, "<key>com.apple.security.cs.allow-jit</key>");

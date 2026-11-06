@@ -85,7 +85,7 @@ export class DesktopEnvironment extends Context.Service<
   }
 >()("@t3tools/desktop/app/DesktopEnvironment") {}
 
-const APP_BASE_NAME = "T3 Code";
+const APP_BASE_NAME = "T3 Code Personal";
 
 function resolveDesktopAppStageLabel(input: {
   readonly isDevelopment: boolean;
@@ -156,11 +156,14 @@ const make = Effect.fn("desktop.environment.make")(function* (
       : input.platform === "darwin"
         ? path.join(homeDirectory, "Library", "Application Support")
         : Option.getOrElse(config.xdgConfigHome, () => path.join(homeDirectory, ".config"));
-  const baseDir = resolveDesktopBaseDir({
-    homeDirectory,
-    joinPath: path.join,
-    t3Home: config.t3Home,
-  });
+  const baseDir =
+    input.isPackaged && input.platform === "darwin"
+      ? path.join(homeDirectory, ".t3-personal")
+      : resolveDesktopBaseDir({
+          homeDirectory,
+          joinPath: path.join,
+          t3Home: config.t3Home,
+        });
   const rootDir = path.resolve(input.dirname, "../../..");
   const appRoot = input.isPackaged ? input.appPath : rootDir;
   const serverRoot =

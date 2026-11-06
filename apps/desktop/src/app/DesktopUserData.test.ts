@@ -6,6 +6,17 @@ import * as Path from "effect/Path";
 
 import { resolveUserDataPath } from "./DesktopUserData.ts";
 
+it.effect("keeps the personal macOS browser profile separate", () =>
+  Effect.gen(function* () {
+    const destination = yield* resolveUserDataPath({
+      appDataDirectory: "/Users/alice/Library/Application Support",
+      isDevelopment: false,
+      platform: "darwin",
+    });
+    assert.equal(destination, "/Users/alice/Library/Application Support/t3code-personal");
+  }).pipe(Effect.provide(NodeServices.layer)),
+);
+
 it.effect.each(["t3code", "T3 Code (Alpha)"])(
   "preserves Windows credential keys from %s without copying browser databases",
   (sourceName) =>

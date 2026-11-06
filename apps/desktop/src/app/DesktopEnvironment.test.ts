@@ -38,6 +38,23 @@ const makeEnvironment = (
 ) => DesktopEnvironment.DesktopEnvironment.pipe(Effect.provide(layerEnvironment(overrides, env)));
 
 describe("DesktopEnvironment", () => {
+  it.effect("isolates packaged macOS state even with an official home override", () =>
+    Effect.gen(function* () {
+      for (const env of [
+        {},
+        { T3CODE_HOME: "/Users/alice/.t3", T3CODE_DISABLE_AUTO_UPDATE: "false" },
+      ]) {
+        const environment = yield* makeEnvironment({ isPackaged: true }, env);
+        assert.equal(environment.baseDir, "/Users/alice/.t3-personal");
+        assert.equal(environment.stateDir, "/Users/alice/.t3-personal/userdata");
+        const config = yield* DesktopConfig.DesktopConfig.pipe(
+          Effect.provide(DesktopConfig.layerTest(env)),
+        );
+        assert.isTrue(config.disableAutoUpdate);
+      }
+    }),
+  );
+
   it.effect("uses the packaged Windows server sidecar as the backend root", () =>
     Effect.gen(function* () {
       const environment = yield* makeEnvironment({
